@@ -11,6 +11,10 @@ on:
         required: false
         type: string
         default: '20'
+      publishWorkspaces:
+        required: false
+        type: boolean
+        default: false
       generateRelease:
         required: false
         type: boolean
@@ -39,7 +43,12 @@ jobs:
       - name: Publish to GitHub Packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NIMBOX_PUBLISH_TOKEN }}
-        run: npm publish
+        run: |
+          if [ "${{ inputs.publishWorkspaces }}" = "true" ]; then
+            npm publish --workspaces
+          else
+            npm publish
+          fi
   create-release:
     needs: build-and-publish
     if: ${{ inputs.generateRelease }}
