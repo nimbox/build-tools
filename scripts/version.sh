@@ -17,7 +17,7 @@ set -euo pipefail
 
 # --- locate repo root (where VERSION + version.json live) --------------------
 
-ROOT="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
+ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
 VERSION_FILE="VERSION"
