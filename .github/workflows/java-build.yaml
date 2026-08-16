@@ -27,6 +27,10 @@ jobs:
           java-version: ${{ inputs.javaVersion }}
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
+      - name: Authenticate with private NPM packages
+        run: |
+          echo "@nimbox:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.NIMBOX_PUBLISH_TOKEN }}" >> ~/.npmrc
       - name: Build and test
         run: ./gradlew build
         env:

@@ -47,6 +47,10 @@ jobs:
       - name: Setup Docker (Optional)
         if: ${{ inputs.dockerSupport }}
         uses: docker/setup-buildx-action@v4
+      - name: Authenticate with private NPM packages
+        run: |
+          echo "@nimbox:registry=https://npm.pkg.github.com" > ~/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.NIMBOX_PUBLISH_TOKEN }}" >> ~/.npmrc
       - name: Build Gradle
         run: ./gradlew build
         env:

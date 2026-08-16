@@ -17,6 +17,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Verify version against tag
+        run: |
+          if [ -f VERSION ]; then
+            curl -fsSL https://raw.githubusercontent.com/nimbox/build-tools/main/scripts/bump.sh -o /tmp/bump.sh
+            bash /tmp/bump.sh verify "${GITHUB_REF_NAME}"
+          else
+            echo "no VERSION file; skipping version verification"
+          fi
       - name: Set up JDK
         uses: actions/setup-java@v5
         with:
