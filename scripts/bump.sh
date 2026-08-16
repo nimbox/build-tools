@@ -123,11 +123,57 @@ read_regex() {
     PAT="$2" perl -ne 'if (/$ENV{PAT}/) { print $1; exit }' "$1"
 }
 
+# --- npm targets -------------------------------------------------------------
+
+# npm owns package.json and package-lock.json; stamping them out-of-band would
+# couple this script to npm's serialization. Apply therefore delegates to
+# `npm version`, which writes both files natively; verify only reads.
+
+apply_npm() {
+    # $1 = directory, $2 = value, $3 = target json
+    local directory="$1" value="$2" workspaces
+    require npm
+    workspaces="$(jq -r '.workspaces // false' <<<"$3")"
+    [ -f "$directory/package.json" ] || die "target package.json not found in: $directory"
+    if [ "$workspaces" = "true" ]; then
+        (cd "$directory" && npm version "$value" --no-git-tag-version --allow-same-version \
+            --workspaces --include-workspace-root >/dev/null)
+    else
+        (cd "$directory" && npm version "$value" --no-git-tag-version --allow-same-version >/dev/null)
+    fi
+}
+
+verify_npm() {
+    # $1 = directory, $2 = expected
+    local directory="$1" expected="$2" actual
+    if [ ! -f "$directory/package.json" ]; then
+        echo "DRIFT  $directory/package.json: file not found" >&2
+        VERIFY_FAILURES=$((VERIFY_FAILURES + 1))
+        return
+    fi
+    actual="$(read_json "$directory/package.json" '.version')"
+    if [ "$actual" != "$expected" ]; then
+        echo "DRIFT  $directory/package.json (.version): expected \"$expected\", found \"$actual\"" >&2
+        VERIFY_FAILURES=$((VERIFY_FAILURES + 1))
+    fi
+    if [ -f "$directory/package-lock.json" ]; then
+        local lock_path
+        for lock_path in '.version' '.packages[""].version'; do
+            actual="$(read_json "$directory/package-lock.json" "$lock_path")"
+            if [ "$actual" != "$expected" ]; then
+                echo "DRIFT  $directory/package-lock.json ($lock_path): expected \"$expected\", found \"$actual\"" >&2
+                VERIFY_FAILURES=$((VERIFY_FAILURES + 1))
+            fi
+        done
+    fi
+}
+
 # --- iterate targets ---------------------------------------------------------
 
 # Calls a function name ($1) for each target with:
-#   <type> <file> <locator> <value>
-# where <locator> is `path` (json), `key` (properties), or `pattern` (regex).
+#   <type> <file> <locator> <value> <target json>
+# where <locator> is `path` (json), `key` (properties), `pattern` (regex),
+# or `directory` (npm).
 for_each_target() {
     local fn="$1" version count i t type file template value locator
     version="$(read_version)"
@@ -135,16 +181,17 @@ for_each_target() {
     for (( i = 0; i < count; i++ )); do
         t="$(jq -c ".targets[$i]" "$MANIFEST")"
         type="$(jq -r '.type' <<<"$t")"
-        file="$(jq -r '.file' <<<"$t")"
+        file="$(jq -r '.file // empty' <<<"$t")"
         template="$(jq -r '.template // "{version}"' <<<"$t")"
         value="$(render "$version" "$template")"
         case "$type" in
             json)       locator="$(jq -r '.path' <<<"$t")" ;;
             properties) locator="$(jq -r '.key' <<<"$t")" ;;
             regex)      locator="$(jq -r '.pattern' <<<"$t")" ;;
+            npm)        locator="$(jq -r '.directory // "."' <<<"$t")" ;;
             *)          die "unknown target type \"$type\" in $MANIFEST" ;;
         esac
-        "$fn" "$type" "$file" "$locator" "$value"
+        "$fn" "$type" "$file" "$locator" "$value" "$t"
     done
 }
 
@@ -153,12 +200,17 @@ _apply_one() {
         json)       apply_json "$2" "$3" "$4" ;;
         properties) apply_properties "$2" "$3" "$4" ;;
         regex)      apply_regex "$2" "$3" "$4" ;;
+        npm)        apply_npm "$3" "$4" "$5" ;;
     esac
 }
 
 VERIFY_FAILURES=0
 _verify_one() {
     local type="$1" file="$2" locator="$3" expected="$4" actual
+    if [ "$type" = "npm" ]; then
+        verify_npm "$locator" "$expected"
+        return
+    fi
     [ -f "$file" ] || { echo "DRIFT  $file: file not found" >&2; VERIFY_FAILURES=$((VERIFY_FAILURES + 1)); return; }
     case "$type" in
         json)       actual="$(read_json "$file" "$locator")" ;;
