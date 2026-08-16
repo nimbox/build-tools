@@ -1,0 +1,43 @@
+name: Node Build Workflow
+
+on:
+  workflow_call:
+    inputs:
+      workingDirectory:
+        required: false
+        type: string
+        default: '.'
+      nodeVersion:
+        required: false
+        type: string
+        default: '20'
+      runTests:
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.workingDirectory }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.nodeVersion }}
+          registry-url: 'https://npm.pkg.github.com/'
+          scope: '@nimbox'
+      - name: Build
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NIMBOX_PUBLISH_TOKEN }}
+        run: |
+          npm ci
+          npm run build
+      - name: Test
+        if: ${{ inputs.runTests }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NIMBOX_PUBLISH_TOKEN }}
+        run: npm test

@@ -28,6 +28,15 @@ jobs:
         working-directory: ${{ inputs.workingDirectory }}
     steps:
       - uses: actions/checkout@v4
+      - name: Verify version against tag
+        working-directory: ${{ github.workspace }}
+        run: |
+          if [ -f VERSION ]; then
+            curl -fsSL https://raw.githubusercontent.com/nimbox/build-tools/main/scripts/bump.sh -o /tmp/bump.sh
+            bash /tmp/bump.sh verify "${GITHUB_REF_NAME}"
+          else
+            echo "no VERSION file; skipping version verification"
+          fi
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
