@@ -27,7 +27,7 @@ jobs:
       run:
         working-directory: ${{ inputs.workingDirectory }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify version against tag
         working-directory: ${{ github.workspace }}
         run: |
@@ -38,15 +38,15 @@ jobs:
             echo "no VERSION file; skipping version verification"
           fi
       - name: Set up JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: ${{ inputs.javaVersion }}
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+        uses: gradle/actions/setup-gradle@v6
       - name: Setup Docker (Optional)
         if: ${{ inputs.dockerSupport }}
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
       - name: Build Gradle
         run: ./gradlew build
         env:

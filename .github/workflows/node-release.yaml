@@ -10,7 +10,7 @@ on:
       nodeVersion:
         required: false
         type: string
-        default: '20'
+        default: '24'
       publishWorkspaces:
         required: false
         type: boolean
@@ -27,7 +27,7 @@ jobs:
       run:
         working-directory: ${{ inputs.workingDirectory }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify version against tag
         working-directory: ${{ github.workspace }}
         run: |
@@ -38,7 +38,7 @@ jobs:
             echo "no VERSION file; skipping version verification"
           fi
       - name: Set up node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ inputs.nodeVersion }}
           registry-url: 'https://npm.pkg.github.com/'
