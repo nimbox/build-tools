@@ -6,6 +6,7 @@ pluginManagement {
 		gradlePluginPortal()
 	}
 	includeBuild("gradle-plugins/versioning")
+	includeBuild("gradle-plugins/artifact")
 }
 
 dependencyResolutionManagement {
@@ -17,3 +18,4 @@ dependencyResolutionManagement {
 }
 
 include("gradle-plugins:versioning")
+include("gradle-plugins:artifact")
