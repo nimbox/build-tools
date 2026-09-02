@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#
+# bump — the Nimbox ship command, for this repository.
+#
+# Every other repository fetches scripts/bump.sh from here through a thin
+# launcher; this is the canonical copy, so it runs straight from the tree.
+
+exec bash "$(dirname "${BASH_SOURCE[0]}")/bump.sh" "$@"
