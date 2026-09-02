@@ -22,12 +22,14 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.TaskAction;
 
 /**
  * Uploads the archive to {@code POST /server/manager/install} as a multipart
  * request and polls the job until it settles. The build fails with the job's
- * cause when the install does.
+ * cause when the install does. The box, its URL and the credentials are
+ * resolved by {@link BoxTarget}: {@code -Pbox=<name>} names the box.
  */
 public abstract class InstallToServerTask extends DefaultTask {
 
@@ -50,6 +52,10 @@ public abstract class InstallToServerTask extends DefaultTask {
 	public abstract Property<String> getArtifactVersion();
 
 	@Input
+	@Optional
+	public abstract Property<String> getBox();
+
+	@Input
 	public abstract Property<String> getServerUrl();
 
 	@Input
@@ -60,7 +66,10 @@ public abstract class InstallToServerTask extends DefaultTask {
 
 		Path archive = getArchive().get().getAsFile().toPath();
 		String sha256 = sha256(archive);
-		String base = getServerUrl().get().replaceAll("/+$", "");
+
+		HttpClient client = HttpClient.newBuilder().proxy(HttpClient.Builder.NO_PROXY).build();
+		BoxTarget target = BoxTarget.resolve(getBox().getOrNull(), getServerUrl().getOrNull(), getServerSecret().getOrNull(), client, getLogger());
+		String base = target.url();
 
 		String manifest = String.format(Locale.ROOT,
 				"{\"kind\":\"%s\",\"artifactName\":\"%s\",\"artifactVersion\":\"%s\",\"sha256\":\"%s\"}",
@@ -69,7 +78,8 @@ public abstract class InstallToServerTask extends DefaultTask {
 		getLogger().lifecycle("installing {} {}@{} on {}", getKind().get().name().toLowerCase(Locale.ROOT),
 				getArtifactName().get(), getArtifactVersion().get(), base);
 
-		HttpClient client = HttpClient.newBuilder().proxy(HttpClient.Builder.NO_PROXY).build();
+		// Settle the credentials before the bytes travel.
+		target.authenticate();
 
 		String boundary = "canexer-" + Long.toHexString(System.nanoTime());
 		byte[] body = multipart(boundary, manifest, archive);
@@ -77,11 +87,11 @@ public abstract class InstallToServerTask extends DefaultTask {
 				.header("Content-Type", "multipart/form-data; boundary=" + boundary)
 				.timeout(TIMEOUT)
 				.POST(HttpRequest.BodyPublishers.ofByteArray(body));
-		authorize(request);
+		target.authorize(request);
 
 		HttpResponse<String> response = client.send(request.build(), HttpResponse.BodyHandlers.ofString());
 		if (response.statusCode() == 401 || response.statusCode() == 403) {
-			throw new GradleException("server refused the credentials (" + response.statusCode() + "): set CANEXER_SERVER_SECRET");
+			throw new GradleException("server refused the credentials (" + response.statusCode() + ")");
 		}
 		if (response.statusCode() >= 400) {
 			throw new GradleException("install refused (" + response.statusCode() + "): " + message(response.body()));
@@ -103,7 +113,7 @@ public abstract class InstallToServerTask extends DefaultTask {
 			}
 			Thread.sleep(1000);
 			HttpRequest.Builder poll = HttpRequest.newBuilder(URI.create(base + "/server/manager/jobs/" + id)).GET();
-			authorize(poll);
+			target.authorize(poll);
 			job = client.send(poll.build(), HttpResponse.BodyHandlers.ofString()).body();
 			state = find(STATE, job);
 		}
@@ -116,13 +126,6 @@ public abstract class InstallToServerTask extends DefaultTask {
 	}
 
 	// Helpers
-
-	private void authorize(HttpRequest.Builder request) {
-		String secret = getServerSecret().getOrElse("");
-		if (!secret.isBlank()) {
-			request.header("Authorization", "Bearer " + secret);
-		}
-	}
 
 	private static byte[] multipart(String boundary, String manifest, Path archive) throws IOException {
 

@@ -12,8 +12,10 @@ import org.gradle.jvm.tasks.Jar;
 
 /**
  * Stamps the {@code Nimbox-*} manifest on the artifact archive and registers
- * {@code installToServer}, which uploads the archive to a running canexer
- * server through its control plane.
+ * {@code installToServer}, which uploads the archive to a canexer box through
+ * its control plane: {@code -Pbox=<name>} names the box (its descriptor gives
+ * the URL, the tower a token when the box asks for one); without a box,
+ * {@code CANEXER_URL} or localhost.
  */
 public abstract class ArtifactPlugin implements Plugin<Project> {
 
@@ -53,7 +55,8 @@ public abstract class ArtifactPlugin implements Plugin<Project> {
 				task.getKind().set(extension.getKind());
 				task.getArtifactName().set(p.getName());
 				task.getArtifactVersion().set(p.getVersion().toString());
-				task.getServerUrl().set(p.getProviders().environmentVariable("CANEXER_URL").orElse("http://localhost:8088"));
+				task.getBox().set(p.getProviders().gradleProperty("box").orElse(p.getProviders().environmentVariable("CANEXER_BOX")));
+				task.getServerUrl().set(p.getProviders().environmentVariable("CANEXER_URL").orElse(""));
 				task.getServerSecret().set(p.getProviders().environmentVariable("CANEXER_SERVER_SECRET").orElse(""));
 			});
 
