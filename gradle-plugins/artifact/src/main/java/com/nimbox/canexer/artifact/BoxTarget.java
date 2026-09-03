@@ -18,9 +18,11 @@ import org.gradle.api.logging.Logger;
 
 /**
  * Where an install goes and how it is let in. A box is named with
- * {@code -Pbox=<name>} (or {@code CANEXER_BOX}); its server URL comes from the
- * box descriptor at {@code ~/.nimbox/boxes/<name>/box.json} ({@code NIMBOX_BOXES}
- * moves the directory), else from {@code CANEXER_URL}, else localhost.
+ * {@code -Pbox=<name>}, {@code CANEXER_BOX}, or the composite's
+ * {@code canexer.box} (the development box, read off the data volume); its
+ * server URL comes from the box descriptor at
+ * {@code ~/.nimbox/boxes/<name>/box.json} ({@code NIMBOX_BOXES} moves the
+ * directory), else from {@code CANEXER_URL}, else localhost.
  * <p>
  * A DEVELOPMENT or INTEGRATION server lets the upload in as is. A box whose
  * manager plane takes tower tokens only gets one from the tower — five
@@ -60,11 +62,15 @@ final class BoxTarget {
 	 * @param secret an explicit bearer, or null
 	 */
 	static BoxTarget resolve(String box, String urlOverride, String secret, HttpClient client, Logger logger) {
-		String url = null;
+		String url;
 		if (box != null && !box.isBlank()) {
+			// A named box goes where its descriptor says, never to a default: a
+			// missing url would send the artifact to the wrong box.
 			url = descriptorUrl(box);
-		}
-		if (url == null) {
+			if (url == null) {
+				throw new GradleException("box '" + box + "' has no url in its descriptor " + descriptorFile(box) + "; add one, or name no box to install on " + (urlOverride != null && !urlOverride.isBlank() ? urlOverride : DEFAULT_URL));
+			}
+		} else {
 			url = urlOverride != null && !urlOverride.isBlank() ? urlOverride : DEFAULT_URL;
 		}
 		return new BoxTarget(box, url.replaceAll("/+$", ""), secret != null && !secret.isBlank() ? secret : null, client, logger);
@@ -109,10 +115,14 @@ final class BoxTarget {
 
 	// Descriptor
 
-	private static String descriptorUrl(String box) {
+	private static Path descriptorFile(String box) {
 		String boxes = System.getenv("NIMBOX_BOXES");
 		Path directory = boxes != null && !boxes.isBlank() ? Paths.get(boxes) : Paths.get(System.getProperty("user.home"), ".nimbox", "boxes");
-		Path manifest = directory.resolve(box).resolve("box.json");
+		return directory.resolve(box).resolve("box.json");
+	}
+
+	private static String descriptorUrl(String box) {
+		Path manifest = descriptorFile(box);
 		if (!Files.isRegularFile(manifest)) {
 			return null;
 		}

@@ -55,6 +55,11 @@ public abstract class InstallToServerTask extends DefaultTask {
 	@Optional
 	public abstract Property<String> getBox();
 
+	/** Where the box name came from, for the log. */
+	@Input
+	@Optional
+	public abstract Property<String> getBoxSource();
+
 	@Input
 	public abstract Property<String> getServerUrl();
 
@@ -75,8 +80,10 @@ public abstract class InstallToServerTask extends DefaultTask {
 				"{\"kind\":\"%s\",\"artifactName\":\"%s\",\"artifactVersion\":\"%s\",\"sha256\":\"%s\"}",
 				getKind().get().name().toLowerCase(Locale.ROOT), getArtifactName().get(), getArtifactVersion().get(), sha256);
 
+		String box = getBox().getOrNull();
 		getLogger().lifecycle("installing {} {}@{} on {}", getKind().get().name().toLowerCase(Locale.ROOT),
-				getArtifactName().get(), getArtifactVersion().get(), base);
+				getArtifactName().get(), getArtifactVersion().get(),
+				box == null || box.isBlank() ? base : "box '" + box + "' (" + getBoxSource().getOrElse("named") + ") at " + base);
 
 		// Settle the credentials before the bytes travel.
 		target.authenticate();
