@@ -1,23 +1,42 @@
-# development
+# build-tools
 
-## workflows
+The shared release machinery for Nimbox repositories: reusable GitHub
+workflows, a release gate action, the `bump` ship command, and the Gradle
+plugins every canexer repository applies. Everything is referenced from
+`main`, so a change here reaches every repository on its next run.
 
-In the `.github/workflows` directory, you can find the following workflows:
+## Overview
 
-* **`java-release.yaml`**: Used to release a new version of a java
-  library to the github java repository.
+**Workflows** (`.github/workflows`), called with `uses:` from a repository's
+own workflow:
 
+* `java-build.yaml`, `node-build.yaml`: build and test on push.
+* `java-release.yaml`, `node-release.yaml`, `canexer-application-release.yaml`:
+  verify the tag, build, publish to GitHub Packages, create the release.
+* `create-release.yaml`: create the GitHub release for the pushed tag.
+
+**Actions** (`actions/`), used as a step:
+
+* `verify-version`: the release gate. Fails the job when the pushed tag does
+  not match the repository's `VERSION`. See [Release gate](#release-gate).
+
+**bump** (`scripts/bump.sh`): the ship command. Bumps `VERSION`, stamps it
+into every declared file, commits, tags, and pushes. See [bump](#bump).
+
+**Gradle plugins** (`gradle-plugins/`):
+
+* `com.nimbox.tools.versioning`: derives the project version from the git tag.
+* `com.nimbox.canexer.artifact`: stamps the `Nimbox-*` manifest and installs
+  the artifact on a box. See [Gradle plugins](#gradle-plugins).
 
 ## bump
 
-`bump` is the ship command every Nimbox repository uses. The repo-root
-`VERSION` file is the single source of truth; `version.json` declares where
-that value is stamped (the targets) and which branch releases ship from. The
-main command runs the whole guarded release: it asserts you are on the release
-branch, clean, and in sync with origin, then bumps `VERSION`, stamps every
-target, commits `Release X.Y.Z`, tags `vX.Y.Z`, and pushes branch and tag
-atomically. The release workflows above run `verify` against the pushed tag
-before publishing.
+The repo-root `VERSION` file is the single source of truth. `version.json`
+declares where that value is stamped (the targets) and which branch releases
+ship from. The main command runs the whole guarded release: it asserts you
+are on the release branch, clean, and in sync with origin, then bumps
+`VERSION`, stamps every target, commits `Release X.Y.Z`, tags `vX.Y.Z`, and
+pushes branch and tag atomically. CI then verifies the tag before publishing.
 
 ```
 bump major | minor | patch | X.Y.Z   guarded release (commit, tag, atomic push)
@@ -26,13 +45,14 @@ bump apply                           stamp VERSION into every target
 bump verify [<tag>]                  assert all targets == VERSION (and == tag)
 ```
 
-**Where the logic lives.** `scripts/bump.sh` in this repository is the only
-copy. Consumers fetch it from `main` on every run, so a change here reaches
-every repository the next time `bump` is invoked. The release workflows fetch
-the same file for `verify`.
+`scripts/bump.sh` in this repository is the only copy of the logic. It needs
+`git`, `jq`, and `perl`, plus `npm` for npm targets.
 
-**Adopting it in a repository.** A consumer carries three files and nothing
-else: `VERSION`, `version.json`, and the launcher `scripts/bump` (executable):
+### Adopting it in a repository
+
+A repository carries three files: `VERSION`, `version.json`, and the
+launcher `scripts/bump` (executable). The launcher fetches `bump.sh` from
+`main` on every run and is the whole of `templates/bump`; copy it as is:
 
 ```bash
 #!/usr/bin/env bash
@@ -43,14 +63,14 @@ curl -fsSL https://raw.githubusercontent.com/nimbox/build-tools/main/scripts/bum
 bash "$script" "$@"
 ```
 
-The launcher is the whole of `templates/bump`; copy it as is. It needs `curl`,
-and `bump.sh` itself needs `git`, `jq`, and `perl` (plus `npm` for npm
-targets). A failed download aborts with the curl error rather than running an
-empty or truncated script.
+A failed download aborts with the curl error rather than running an empty or
+truncated script.
 
-**`version.json`.** `tagPrefix` (default `v`), `branch` (default `main`), and
-one entry per target. Each target has a `type`, a locator, and an optional
-`template` in which `{version}` is replaced:
+### version.json
+
+`tagPrefix` (default `v`), `branch` (default `main`), and one entry per
+target. Each target has a `type`, a locator, and an optional `template` in
+which `{version}` is replaced:
 
 ```json
 {
@@ -74,7 +94,34 @@ one entry per target. Each target has a `type`, a locator, and an optional
   delegated to `npm version`, which also writes `package-lock.json`.
   `"workspaces": true` includes the workspace packages.
 
-## gradle-plugins
+## Release gate
+
+`actions/verify-version` asserts that the pushed tag agrees with the
+repository's `VERSION` and every `version.json` target, so a tag cut by hand
+on a stale commit cannot publish. It runs `scripts/bump.sh verify` from this
+repository's checkout, so the ref of the action pins the ref of the script.
+
+The release workflows run it before they build, so a repository calling them
+is gated with nothing to add. A repository with its own release pipeline adds
+one step after checkout, in the job that publishes:
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+  - id: verify
+    uses: nimbox/build-tools/actions/verify-version@main
+```
+
+Inputs:
+
+* `tag`: the tag to verify. Default: the ref that triggered the workflow.
+* `required`: fail when the repository has no `VERSION`. Default `false`,
+  which skips with a notice.
+
+Output: `version`, the released version without the tag prefix, for image
+tags and release titles (`${{ steps.verify.outputs.version }}`).
+
+## Gradle plugins
 
 Plugins every canexer repository applies, published to GitHub Packages and
 versioned with this repository's tag.

@@ -1,0 +1,44 @@
+name: Verify version
+description: >-
+  Asserts that the pushed tag agrees with the repository's VERSION file and
+  every version.json target, so a tag cut by hand on a stale commit cannot
+  publish. Runs scripts/bump.sh verify from this checkout of build-tools.
+
+inputs:
+  tag:
+    description: The tag to verify. Defaults to the ref that triggered the workflow.
+    required: false
+    default: ${{ github.ref_name }}
+  required:
+    description: Fail when the repository has no VERSION file instead of skipping.
+    required: false
+    default: 'false'
+
+outputs:
+  version:
+    description: The released version without the tag prefix (VERSION when verified, the stripped tag when skipped).
+    value: ${{ steps.verify.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - id: verify
+      shell: bash
+      env:
+        TAG: ${{ inputs.tag }}
+        REQUIRED: ${{ inputs.required }}
+      run: |
+        set -euo pipefail
+        bump="$GITHUB_ACTION_PATH/../../scripts/bump.sh"
+        root="$(git rev-parse --show-toplevel)"
+        if [ -f "$root/VERSION" ]; then
+          bash "$bump" verify "$TAG"
+          version="$(bash "$bump" current)"
+        elif [ "$REQUIRED" = "true" ]; then
+          echo "::error::no VERSION file at the repository root"
+          exit 1
+        else
+          echo "::notice::no VERSION file; skipping version verification"
+          version="${TAG#v}"
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
