@@ -8,6 +8,72 @@ In the `.github/workflows` directory, you can find the following workflows:
   library to the github java repository.
 
 
+## bump
+
+`bump` is the ship command every Nimbox repository uses. The repo-root
+`VERSION` file is the single source of truth; `version.json` declares where
+that value is stamped (the targets) and which branch releases ship from. The
+main command runs the whole guarded release: it asserts you are on the release
+branch, clean, and in sync with origin, then bumps `VERSION`, stamps every
+target, commits `Release X.Y.Z`, tags `vX.Y.Z`, and pushes branch and tag
+atomically. The release workflows above run `verify` against the pushed tag
+before publishing.
+
+```
+bump major | minor | patch | X.Y.Z   guarded release (commit, tag, atomic push)
+bump current                         print the version (from VERSION)
+bump apply                           stamp VERSION into every target
+bump verify [<tag>]                  assert all targets == VERSION (and == tag)
+```
+
+**Where the logic lives.** `scripts/bump.sh` in this repository is the only
+copy. Consumers fetch it from `main` on every run, so a change here reaches
+every repository the next time `bump` is invoked. The release workflows fetch
+the same file for `verify`.
+
+**Adopting it in a repository.** A consumer carries three files and nothing
+else: `VERSION`, `version.json`, and the launcher `scripts/bump` (executable):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+script="$(mktemp)"
+trap 'rm -f "$script"' EXIT
+curl -fsSL https://raw.githubusercontent.com/nimbox/build-tools/main/scripts/bump.sh -o "$script"
+bash "$script" "$@"
+```
+
+The launcher is the whole of `templates/bump`; copy it as is. It needs `curl`,
+and `bump.sh` itself needs `git`, `jq`, and `perl` (plus `npm` for npm
+targets). A failed download aborts with the curl error rather than running an
+empty or truncated script.
+
+**`version.json`.** `tagPrefix` (default `v`), `branch` (default `main`), and
+one entry per target. Each target has a `type`, a locator, and an optional
+`template` in which `{version}` is replaced:
+
+```json
+{
+  "tagPrefix": "v",
+  "branch": "main",
+  "targets": [
+    { "type": "json",       "file": "app/manifest.json", "path": ".version" },
+    { "type": "properties", "file": "gradle.properties", "key": "version" },
+    { "type": "regex",      "file": "src/version.py",   "pattern": "^__version__ = \"([^\"]+)\"" },
+    { "type": "npm",        "directory": ".",           "workspaces": true }
+  ]
+}
+```
+
+* **`json`**: `file` plus a jq `path` set to the value.
+* **`properties`**: `file` plus a `key`; the `key=value` line is replaced or
+  appended.
+* **`regex`**: `file` plus a `pattern` with exactly one capture group around
+  the version; the captured text is replaced.
+* **`npm`**: `directory` holding `package.json` (default `.`); stamping is
+  delegated to `npm version`, which also writes `package-lock.json`.
+  `"workspaces": true` includes the workspace packages.
+
 ## gradle-plugins
 
 Plugins every canexer repository applies, published to GitHub Packages and
