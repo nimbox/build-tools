@@ -16,10 +16,10 @@ import org.gradle.api.provider.Property;
  */
 public abstract class ArtifactExtension {
 
-	/** Application or connector. */
+	/** Application, connector, or the server distribution. */
 	public abstract Property<ArtifactKind> getKind();
 
-	/** The identity ({@code Nimbox-Provides}), stable across versions. */
+	/** The identity ({@code Nimbox-Provides}), stable across versions; not needed for the server. */
 	public abstract Property<String> getProvides();
 
 	/** The pf4j plugin class ({@code Nimbox-Plugin-Class}); connectors only. */

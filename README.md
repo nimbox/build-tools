@@ -130,13 +130,27 @@ versioned with this repository's tag.
   git tag.
 * **`com.nimbox.canexer.artifact`**: stamps the `Nimbox-*` manifest on an
   application war or a connector jar and registers `installToServer`, which
-  uploads the archive to a box's control plane
-  (`POST /server/manager/install`) and waits for the install job to settle.
+  uploads the archive to a box's manager plane
+  (`POST /server/manager/install`, multipart, manifest
+  `{kind, artifactName, artifactVersion, artifactSha256}`) and waits for the
+  install job to settle. The kind is `APPLICATION` (`war`), `CONNECTOR`
+  (`shadowJar`) or `SERVER` (`distZip`, no manifest: the server distribution
+  itself, whose install restarts the box; the task waits for it to come back).
 
   ```
   ./gradlew installToServer                 # the development box
   ./gradlew installToServer -Pbox=demotwo   # another box
   ```
+
+  The plugin jar also carries the client it uses, in
+  `com.nimbox.canexer.artifact.client`, for build logic that talks to a box:
+  `BoxDescriptor` (the descriptor directory and its `box.json`), `LocalBox`
+  (the data volume from `CANEXER_DATA` or an `.env`, and the `box` and
+  `label` files adoption leaves on it), `BoxTarget` (which box, at which
+  URL), `ManagerClient` (JSON in and out of the plane, the multipart
+  install, `/server/mode`) and `TowerClient` (box tokens, `adopt`,
+  `activate`). canexer's `buildSrc` box tasks are built on it
+  (`com.nimbox.tools:artifact`).
 
 **Which box.** The first of these that is set:
 

@@ -5,8 +5,6 @@ pluginManagement {
 		mavenCentral()
 		gradlePluginPortal()
 	}
-	includeBuild("gradle-plugins/versioning")
-	includeBuild("gradle-plugins/artifact")
 }
 
 dependencyResolutionManagement {

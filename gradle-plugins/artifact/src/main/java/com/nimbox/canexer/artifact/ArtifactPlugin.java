@@ -8,15 +8,17 @@ import java.util.TimeZone;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.jvm.tasks.Jar;
 
 /**
- * Stamps the {@code Nimbox-*} manifest on the artifact archive and registers
- * {@code installToServer}, which uploads the archive to a canexer box through
- * its control plane. The box is {@code -Pbox=<name>}, else {@code CANEXER_BOX}
- * in the environment, else the development box the composite reads off this
- * machine's data volume ({@code canexer.box}); its descriptor gives the URL and
- * the tower a token when the box asks for one. Without any box,
+ * Stamps the {@code Nimbox-*} manifest on an application or connector archive
+ * and registers {@code installToServer}, which uploads the archive (the
+ * server distribution zip included) to a canexer box through its manager
+ * plane. The box is {@code -Pbox=<name>}, else {@code CANEXER_BOX} in the
+ * environment, else the development box the composite reads off this
+ * machine's data volume ({@code canexer.box}); its descriptor gives the URL
+ * and the tower a token when the box asks for one. Without any box,
  * {@code CANEXER_URL} or localhost.
  */
 public abstract class ArtifactPlugin implements Plugin<Project> {
@@ -33,19 +35,25 @@ public abstract class ArtifactPlugin implements Plugin<Project> {
 
 		project.afterEvaluate(p -> {
 
-			if (!extension.getKind().isPresent() || !extension.getProvides().isPresent()) {
-				throw new IllegalStateException(EXTENSION + " needs kind and provides");
+			if (!extension.getKind().isPresent()) {
+				throw new IllegalStateException(EXTENSION + " needs kind");
 			}
-			if (extension.getKind().get() == ArtifactKind.CONNECTOR && !extension.getPluginClass().isPresent()) {
+			ArtifactKind kind = extension.getKind().get();
+			if (kind != ArtifactKind.SERVER && !extension.getProvides().isPresent()) {
+				throw new IllegalStateException(EXTENSION + " needs provides for " + kind.key());
+			}
+			if (kind == ArtifactKind.CONNECTOR && !extension.getPluginClass().isPresent()) {
 				throw new IllegalStateException(EXTENSION + " needs pluginClass for a connector");
 			}
 
 			String taskName = extension.getArchiveTask().get();
-			Jar archive = (Jar) p.getTasks().getByName(taskName);
+			AbstractArchiveTask archive = (AbstractArchiveTask) p.getTasks().getByName(taskName);
 
-			// Manifest
+			// Manifest: a box reads it off a jar or a war; the server zip has none.
 
-			archive.manifest(manifest -> manifest.attributes(attributes(p, extension)));
+			if (archive instanceof Jar jar) {
+				jar.manifest(manifest -> manifest.attributes(attributes(p, extension)));
+			}
 
 			// installToServer
 
