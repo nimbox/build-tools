@@ -232,13 +232,13 @@ public final class ManagerClient {
 		if (!answer.ok()) {
 			throw new BoxClientException("install refused (" + answer.status() + "): " + answer.message());
 		}
-		String id = Json.string(answer.body(), "id");
+		Map<String, Object> job = job(answer.body());
+		String id = Json.string(job, "id");
 		if (id == null) {
 			throw new BoxClientException("the manager plane answered without a job: " + answer.text());
 		}
 
 		long deadline = System.nanoTime() + timeout.toNanos();
-		Map<String, Object> job = answer.body();
 		String state = Json.string(job, "state");
 		boolean restarting = false;
 		while (!"DONE".equals(state) && !"FAILED".equals(state)) {
@@ -249,7 +249,7 @@ public final class ManagerClient {
 			try {
 				Answer poll = send(builder("/jobs/" + id).GET());
 				if (poll.ok() && poll.body() != null) {
-					job = poll.body();
+					job = job(poll.body());
 					state = Json.string(job, "state");
 				}
 			} catch (BoxClientException e) {
@@ -270,6 +270,12 @@ public final class ManagerClient {
 	}
 
 	// Helpers
+
+	/** The install answer wraps the job as {@code {job}}; the job endpoint answers the job itself. */
+	private static Map<String, Object> job(Map<String, Object> document) {
+		Map<String, Object> wrapped = Json.object(document, "job");
+		return wrapped != null ? wrapped : document;
+	}
 
 	private void pause() {
 		try {

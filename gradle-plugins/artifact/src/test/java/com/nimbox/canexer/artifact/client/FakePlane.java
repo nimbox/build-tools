@@ -78,7 +78,7 @@ final class FakePlane implements AutoCloseable {
 
 		switch (path) {
 		case "/server/manager/status" -> reply(exchange, 200, "{\"box\":\"testone\",\"mode\":\"" + mode + "\"}");
-		case "/server/manager/install" -> reply(exchange, 202, "{\"id\":\"job-1\",\"state\":\"QUEUED\"}");
+		case "/server/manager/install" -> reply(exchange, 202, "{\"job\":{\"id\":\"job-1\",\"state\":\"QUEUED\",\"kind\":\"application\"}}");
 		case "/server/manager/jobs/job-1" -> {
 			polls++;
 			if (serverRestart && polls <= 2) {
