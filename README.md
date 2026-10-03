@@ -145,8 +145,8 @@ versioned with this repository's tag.
   The plugin jar also carries the client it uses, in
   `com.nimbox.canexer.artifact.client`, for build logic that talks to a box:
   `BoxDescriptor` (the descriptor directory and its `box.json`), `LocalBox`
-  (the data volume from `CANEXER_DATA` or an `.env`, and the `box` and
-  `label` files adoption leaves on it), `BoxTarget` (which box, at which
+  (the data volume from `CANEXER_DATA` or an `.env`, and the machine's
+  name and label the `nimbox-atlas` agent keeps under its `nimbox/`), `BoxTarget` (which box, at which
   URL), `ManagerClient` (JSON in and out of the plane, the multipart
   install, `/server/mode`) and `TowerClient` (box tokens, `adopt`,
   `activate`). canexer's `buildSrc` box tasks are built on it

@@ -9,16 +9,19 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * The box this machine runs: its data volume and the files adoption leaves
- * there. The volume is {@code CANEXER_DATA} in the environment, else the same
- * variable in an environment file ({@code canexer-server/.env} in the canexer
- * repository); {@code <data>/box} names the box and {@code <data>/label} is
- * the label the controller wrote at its first boot.
+ * The box this machine runs: its data volume and the machine the
+ * {@code nimbox-atlas} agent keeps there. The volume is {@code CANEXER_DATA}
+ * in the environment, else the same variable in an environment file
+ * ({@code canexer-server/.env} in the canexer repository);
+ * {@code <data>/nimbox/machine.name} is the identity's name once adopted,
+ * whose first label names the box, and {@code <data>/nimbox/machine.label}
+ * is the label the agent chose at its first boot.
  */
 public final class LocalBox {
 
-	public static final String BOX = "box";
-	public static final String LABEL = "label";
+	public static final String MACHINE = "nimbox";
+	public static final String NAME = "machine.name";
+	public static final String LABEL = "machine.label";
 	private static final Pattern DATA = Pattern.compile("^\\s*CANEXER_DATA\\s*=\\s*(.*?)\\s*(?:#.*)?$");
 
 	private LocalBox() {
@@ -58,12 +61,13 @@ public final class LocalBox {
 
 	}
 
-	/** @return the box name adoption wrote on the volume, or null when the volume is blank or unknown */
+	/** @return the box's short name, the first label of the machine's name, or null when the volume is blank or unknown */
 	public static String name(Path data) {
-		return trimmed(data, BOX);
+		String name = trimmed(data, NAME);
+		return name == null ? null : name.split("\\.", 2)[0];
 	}
 
-	/** @return the label the controller wrote, or null */
+	/** @return the label the agent chose, or null */
 	public static String label(Path data) {
 		return trimmed(data, LABEL);
 	}
@@ -74,7 +78,7 @@ public final class LocalBox {
 			return null;
 		}
 
-		Path path = data.resolve(file);
+		Path path = data.resolve(MACHINE).resolve(file);
 		if (!Files.isRegularFile(path)) {
 			return null;
 		}
