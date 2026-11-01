@@ -13,13 +13,13 @@ import java.util.regex.Pattern;
  * {@code nimbox-atlas} agent keeps there. The volume is {@code CANEXER_DATA}
  * in the environment, else the same variable in an environment file
  * ({@code canexer-server/.env} in the canexer repository);
- * {@code <data>/nimbox/machine.name} is the identity's name once adopted,
- * whose first label names the box, and {@code <data>/nimbox/machine.label}
+ * {@code <data>/nimbox/atlas/machine.name} is the identity's name once adopted,
+ * whose first label names the box, and {@code <data>/nimbox/atlas/machine.label}
  * is the label the agent chose at its first boot.
  */
 public final class LocalBox {
 
-	public static final String MACHINE = "nimbox";
+	public static final String MACHINE = "nimbox/atlas";
 	public static final String NAME = "machine.name";
 	public static final String LABEL = "machine.label";
 	private static final Pattern DATA = Pattern.compile("^\\s*CANEXER_DATA\\s*=\\s*(.*?)\\s*(?:#.*)?$");

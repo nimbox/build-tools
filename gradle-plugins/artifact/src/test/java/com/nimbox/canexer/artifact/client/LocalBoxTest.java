@@ -18,9 +18,9 @@ class LocalBoxTest {
 	@Test
 	void whenEnvironmentFileNamesTheVolume_thenBoxAndLabelRead() throws IOException {
 		Path data = temporary.resolve("volume");
-		Files.createDirectories(data.resolve("nimbox"));
-		Files.writeString(data.resolve("nimbox/machine.name"), "testone.box.nimbox.one\n");
-		Files.writeString(data.resolve("nimbox/machine.label"), "communicable-banks\n");
+		Files.createDirectories(data.resolve("nimbox/atlas"));
+		Files.writeString(data.resolve("nimbox/atlas/machine.name"), "testone.box.nimbox.one\n");
+		Files.writeString(data.resolve("nimbox/atlas/machine.label"), "communicable-banks\n");
 		Path environment = temporary.resolve(".env");
 		Files.writeString(environment, "CANEXER_URL=https://x\nCANEXER_DATA=\"" + data + "\"  # the volume\n");
 		Path resolved = LocalBox.dataPath(environment);
