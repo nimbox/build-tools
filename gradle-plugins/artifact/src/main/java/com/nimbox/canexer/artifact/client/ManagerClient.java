@@ -212,7 +212,7 @@ public final class ManagerClient {
 	 *
 	 * @param name what the box calls the artifact ({@code Nimbox-Provides})
 	 * @param data the box's volume
-	 * @return the job document, {@code DONE}
+	 * @return the job document, {@code done}
 	 * @throws BoxClientException when the install is refused, fails, or does not settle in time
 	 */
 	public Map<String, Object> install(ArtifactKind kind, String name, String version, Path archive, Path data, Duration timeout) {
@@ -250,7 +250,7 @@ public final class ManagerClient {
 		long deadline = System.nanoTime() + timeout.toNanos();
 		String state = Json.string(job, "state");
 		boolean restarting = false;
-		while (!"DONE".equals(state) && !"FAILED".equals(state)) {
+		while (!"done".equals(state) && !"failed".equals(state)) {
 			if (System.nanoTime() > deadline) {
 				throw new BoxClientException("install job " + id + " did not settle within " + timeout.toSeconds() + "s (last state " + state + ")");
 			}
@@ -271,7 +271,7 @@ public final class ManagerClient {
 				}
 			}
 		}
-		if ("FAILED".equals(state)) {
+		if ("failed".equals(state)) {
 			throw new BoxClientException("install failed: " + Json.string(job, "cause"));
 		}
 		return job;

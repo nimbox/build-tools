@@ -85,7 +85,7 @@ class ManagerClientTest {
 		Files.writeString(archive, "not really a war");
 		Path data = temporary.resolve("volume");
 		Map<String, Object> job = client(null, null).install(ArtifactKind.APPLICATION, "ar", "1.0", archive, data, Duration.ofSeconds(5));
-		assertEquals("DONE", job.get("state"));
+		assertEquals("done", job.get("state"));
 		assertEquals("not really a war", Files.readString(data.resolve("staging/ar-1.0.war")));
 		String document = plane.bodies.get(plane.requests.indexOf("POST /server/manager/v1/install"));
 		assertTrue(document.contains("\"kind\":\"application\""));
@@ -101,7 +101,7 @@ class ManagerClientTest {
 		Path archive = temporary.resolve("canexer-server-0.4.0.zip");
 		Files.writeString(archive, "zip");
 		Map<String, Object> job = client(null, null).install(ArtifactKind.SERVER, "server", "0.4.0", archive, temporary, Duration.ofSeconds(5));
-		assertEquals("DONE", job.get("state"));
+		assertEquals("done", job.get("state"));
 		assertTrue(log.stream().anyMatch(line -> line.contains("restarting")));
 	}
 

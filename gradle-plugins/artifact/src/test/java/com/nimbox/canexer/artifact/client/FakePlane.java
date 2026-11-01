@@ -78,14 +78,14 @@ final class FakePlane implements AutoCloseable {
 
 		switch (path) {
 		case "/server/manager/v1/status" -> reply(exchange, 200, "{\"box\":\"testone\",\"mode\":\"" + mode + "\"}");
-		case "/server/manager/v1/install" -> reply(exchange, 202, "{\"job\":{\"id\":\"job-1\",\"state\":\"QUEUED\",\"kind\":\"application\"}}");
+		case "/server/manager/v1/install" -> reply(exchange, 202, "{\"job\":{\"id\":\"job-1\",\"state\":\"queued\",\"kind\":\"application\"}}");
 		case "/server/manager/v1/jobs/job-1" -> {
 			polls++;
 			if (serverRestart && polls <= 2) {
 				exchange.close();
 				return;
 			}
-			reply(exchange, 200, polls >= 2 ? "{\"id\":\"job-1\",\"state\":\"DONE\"}" : "{\"id\":\"job-1\",\"state\":\"INSTALLING\"}");
+			reply(exchange, 200, polls >= 2 ? "{\"id\":\"job-1\",\"state\":\"done\"}" : "{\"id\":\"job-1\",\"state\":\"INSTALLING\"}");
 		}
 		case "/server/manager/v1/users" -> reply(exchange, body.contains("\"uid\":\"rmarimon\"") ? 201 : 400, body.contains("\"uid\":\"rmarimon\"") ? "{\"user\":{\"uid\":\"rmarimon\"}}" : "{\"errors\":[{\"message\":\"uid is required\"}]}");
 		case "/server/manager/v1/reset" -> reply(exchange, 202, "{\"status\":\"resetting\",\"mode\":\"soft\"}");
