@@ -1,6 +1,5 @@
 package com.nimbox.canexer.artifact.client;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -9,6 +8,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
@@ -21,15 +21,16 @@ import java.util.function.Consumer;
 import com.nimbox.canexer.artifact.ArtifactKind;
 
 /**
- * A box's manager plane ({@code /server/manager/*}): JSON in and out, the
- * multipart install with its job, and the server mode. Credentials settle
- * before anything travels: an explicit secret is kept; an open plane needs
- * nothing; a plane that refuses gets a tower token for the box, scoped
- * {@code read} and {@code write}, so a refused upload never travels twice.
+ * A box's manager plane ({@code /server/manager/v1/*}): JSON in and out, the
+ * install with its job, and the server mode. Credentials settle before anything
+ * travels: an explicit secret is kept; an open plane needs nothing; a plane that
+ * refuses gets a tower token for the box, scoped {@code read}, the one verb there is.
  */
 public final class ManagerClient {
 
-	public static final String PLANE = "/server/manager";
+	private static final String STAGING = "staging";
+
+	public static final String PLANE = "/server/manager/v1";
 	public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(30);
 	public static final Duration INSTALL_TIMEOUT = Duration.ofSeconds(180);
 
@@ -40,12 +41,16 @@ public final class ManagerClient {
 			return status >= 200 && status < 300;
 		}
 
-		/** The plane's {@code error} or {@code cause}, else the whole text. */
+		/** The first of the plane's {@code errors}, else its {@code cause}, else the whole text. */
+		@SuppressWarnings("unchecked")
 		public String message() {
 
-			String error = Json.string(body, "error");
-			if (error != null) {
-				return error;
+			List<Object> errors = Json.array(body, "errors");
+			if (errors != null && !errors.isEmpty() && errors.get(0) instanceof Map<?, ?> first) {
+				String error = Json.string((Map<String, Object>) first, "message");
+				if (error != null) {
+					return error;
+				}
 			}
 
 			String cause = Json.string(body, "cause");
@@ -193,42 +198,46 @@ public final class ManagerClient {
 				throw new BoxClientException("the manager plane at " + target.url() + " takes tower tokens only: name the box with -Pbox=<name> so one can be obtained");
 			}
 			log.accept("the manager plane at " + target.url() + " takes tower tokens; asking the tower at " + tower.url() + " for one for '" + target.box() + "'");
-			bearer = tower.token(target.box(), List.of("read", "write"));
+			bearer = tower.token(target.box(), List.of("read"));
 		}
 	}
 
 	// Install
 
 	/**
-	 * Uploads the archive as a multipart install and waits for the job to
-	 * settle. A server install restarts the box: the plane stops answering
-	 * while it does, and the poll keeps waiting until it is back and the job
-	 * is done.
+	 * Copies the archive into {@code staging/} on the volume, installs it by that
+	 * name and waits for the job to settle. A server install restarts the box: the
+	 * plane stops answering while it does, and the poll keeps waiting until it is
+	 * back and the job is done.
 	 *
+	 * @param name what the box calls the artifact ({@code Nimbox-Provides})
+	 * @param data the box's volume
 	 * @return the job document, {@code DONE}
 	 * @throws BoxClientException when the install is refused, fails, or does not settle in time
 	 */
-	public Map<String, Object> install(ArtifactKind kind, String artifactName, String artifactVersion, Path archive, Duration timeout) {
+	public Map<String, Object> install(ArtifactKind kind, String name, String version, Path archive, Path data, Duration timeout) {
 
 		authenticate();
 
-		Map<String, Object> manifest = new LinkedHashMap<>();
-
-		manifest.put("kind", kind.key());
-		manifest.put("artifactName", artifactName);
-		manifest.put("artifactVersion", artifactVersion);
-		manifest.put("artifactSha256", sha256(archive));
-
-		String boundary = "canexer-" + Long.toHexString(System.nanoTime());
-		byte[] body;
+		String staged = archive.getFileName().toString();
 		try {
-			body = multipart(boundary, Json.write(manifest), archive);
+			Files.createDirectories(data.resolve(STAGING));
+			Files.copy(archive, data.resolve(STAGING).resolve(staged), StandardCopyOption.REPLACE_EXISTING);
 		} catch (IOException e) {
-			throw new BoxClientException("unable to read " + archive, e);
+			throw new BoxClientException("unable to copy " + archive + " into " + data.resolve(STAGING), e);
 		}
+
+		Map<String, Object> document = new LinkedHashMap<>();
+
+		document.put("kind", kind.key());
+		document.put("name", name);
+		document.put("version", version);
+		document.put("sha256", sha256(archive));
+		document.put("staged", staged);
+
 		Answer answer = send(builder("/install").timeout(timeout)
-				.header("Content-Type", "multipart/form-data; boundary=" + boundary)
-				.POST(HttpRequest.BodyPublishers.ofByteArray(body)));
+				.header("Content-Type", "application/json")
+				.POST(HttpRequest.BodyPublishers.ofString(Json.write(document), StandardCharsets.UTF_8)));
 		if (!answer.ok()) {
 			throw new BoxClientException("install refused (" + answer.status() + "): " + answer.message());
 		}
@@ -257,7 +266,7 @@ public final class ManagerClient {
 					throw e;
 				}
 				if (!restarting) {
-					log.accept("the server is restarting into " + artifactVersion + "; waiting for it to come back");
+					log.accept("the server is restarting into " + version + "; waiting for it to come back");
 					restarting = true;
 				}
 			}
@@ -294,29 +303,6 @@ public final class ManagerClient {
 		} catch (NoSuchAlgorithmException | IOException e) {
 			throw new BoxClientException("unable to digest " + file, e);
 		}
-	}
-
-	private static byte[] multipart(String boundary, String manifest, Path archive) throws IOException {
-
-		ByteArrayOutputStream out = new ByteArrayOutputStream();
-		String crlf = "\r\n";
-
-		out.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-		out.write(("Content-Disposition: form-data; name=\"manifest\"" + crlf).getBytes(StandardCharsets.UTF_8));
-		out.write(("Content-Type: application/json; charset=utf-8" + crlf + crlf).getBytes(StandardCharsets.UTF_8));
-		out.write(manifest.getBytes(StandardCharsets.UTF_8));
-		out.write(crlf.getBytes(StandardCharsets.UTF_8));
-
-		out.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-		out.write(("Content-Disposition: form-data; name=\"artifact\"; filename=\"" + archive.getFileName() + "\"" + crlf)
-				.getBytes(StandardCharsets.UTF_8));
-		out.write(("Content-Type: application/octet-stream" + crlf + crlf).getBytes(StandardCharsets.UTF_8));
-		out.write(Files.readAllBytes(archive));
-		out.write(crlf.getBytes(StandardCharsets.UTF_8));
-
-		out.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
-		return out.toByteArray();
-
 	}
 
 }

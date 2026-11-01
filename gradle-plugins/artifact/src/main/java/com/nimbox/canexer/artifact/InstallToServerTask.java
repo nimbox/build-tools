@@ -17,8 +17,9 @@ import com.nimbox.canexer.artifact.client.BoxTarget;
 import com.nimbox.canexer.artifact.client.ManagerClient;
 
 /**
- * Uploads the archive to {@code POST /server/manager/install} and waits for
- * the job to settle; the build fails with the job's cause when the install
+ * Copies the archive into {@code staging/} on the box's volume, calls
+ * {@code POST /server/manager/v1/install} with its name, and waits for the job to
+ * settle; the build fails with the job's cause when the install
  * does. The box, its URL and the credentials are resolved by
  * {@link BoxTarget}: {@code -Pbox=<name>} names the box.
  */
@@ -45,6 +46,11 @@ public abstract class InstallToServerTask extends DefaultTask {
 	@Optional
 	public abstract Property<String> getBoxSource();
 
+	/** The box's volume, {@code CANEXER_DATA}. */
+	@Input
+	@Optional
+	public abstract Property<String> getData();
+
 	@Input
 	public abstract Property<String> getServerUrl();
 
@@ -57,6 +63,10 @@ public abstract class InstallToServerTask extends DefaultTask {
 		Path archive = getArchive().get().getAsFile().toPath();
 		ArtifactKind kind = getKind().get();
 		String box = getBox().getOrNull();
+		String data = getData().getOrNull();
+		if (data == null || data.isBlank()) {
+			throw new GradleException("the box's volume is not known: set CANEXER_DATA");
+		}
 
 		try {
 			BoxTarget target = BoxTarget.resolve(box, getServerUrl().getOrNull(), getServerSecret().getOrNull());
@@ -65,7 +75,7 @@ public abstract class InstallToServerTask extends DefaultTask {
 			getLogger().lifecycle("installing {} {}@{} on {}", kind.key(), getArtifactName().get(), getArtifactVersion().get(),
 					box == null || box.isBlank() ? target.url() : "box '" + box + "' (" + getBoxSource().getOrElse("named") + ") at " + target.url());
 
-			Map<String, Object> job = client.install(kind, getArtifactName().get(), getArtifactVersion().get(), archive, ManagerClient.INSTALL_TIMEOUT);
+			Map<String, Object> job = client.install(kind, getArtifactName().get(), getArtifactVersion().get(), archive, Path.of(data), ManagerClient.INSTALL_TIMEOUT);
 			getLogger().lifecycle("installed {}@{} (job {})", getArtifactName().get(), getArtifactVersion().get(), job.get("id"));
 		} catch (BoxClientException e) {
 			throw new GradleException(e.getMessage(), e);

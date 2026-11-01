@@ -3,12 +3,12 @@ package com.nimbox.canexer.artifact;
 import java.util.Locale;
 
 /**
- * What a canexer box installs: an application war, a connector jar, or the
- * server distribution itself.
+ * The four kinds of artifact, listed in this order: the bootstrap and the server
+ * distributions, an application war, a connector jar.
  */
 public enum ArtifactKind {
 
-	APPLICATION("war"), CONNECTOR("shadowJar"), SERVER("distZip");
+	BOOTSTRAP("distZip"), SERVER("distZip"), APPLICATION("war"), CONNECTOR("shadowJar");
 
 	private final String archiveTask;
 
@@ -21,7 +21,7 @@ public enum ArtifactKind {
 		return archiveTask;
 	}
 
-	/** The kind as the manager plane spells it: {@code application}, {@code connector}, {@code server}. */
+	/** The kind as a manifest and the plane spell it: {@code server}, {@code application}, ... */
 	public String key() {
 		return name().toLowerCase(Locale.ROOT);
 	}

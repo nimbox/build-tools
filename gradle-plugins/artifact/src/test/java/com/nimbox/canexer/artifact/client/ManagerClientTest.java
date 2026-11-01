@@ -61,7 +61,7 @@ class ManagerClientTest {
 		ManagerClient.Answer answer = client("testone", "login").get("/status");
 		assertEquals(200, answer.status());
 		assertTrue(plane.requests.contains("POST /graphql Bearer login"));
-		assertTrue(plane.requests.contains("GET /server/manager/status Bearer " + FakePlane.TOKEN));
+		assertTrue(plane.requests.contains("GET /server/manager/v1/status Bearer " + FakePlane.TOKEN));
 		assertEquals(1, log.size());
 	}
 
@@ -80,16 +80,19 @@ class ManagerClientTest {
 	}
 
 	@Test
-	void whenInstalled_thenManifestCarriesArtifactSha256AndJobSettles() throws IOException {
+	void whenInstalled_thenStagedOnTheVolumeNamedByItAndJobSettles() throws IOException {
 		Path archive = temporary.resolve("ar-1.0.war");
 		Files.writeString(archive, "not really a war");
-		Map<String, Object> job = client(null, null).install(ArtifactKind.APPLICATION, "canexer-application-ar", "1.0", archive, Duration.ofSeconds(5));
+		Path data = temporary.resolve("volume");
+		Map<String, Object> job = client(null, null).install(ArtifactKind.APPLICATION, "ar", "1.0", archive, data, Duration.ofSeconds(5));
 		assertEquals("DONE", job.get("state"));
-		String upload = plane.bodies.get(plane.requests.indexOf("POST /server/manager/install"));
-		assertTrue(upload.contains("\"kind\":\"application\""));
-		assertTrue(upload.contains("\"artifactSha256\":\"" + ManagerClient.sha256(archive) + "\""));
-		assertFalse(upload.contains("\"sha256\""));
-		assertTrue(upload.contains("filename=\"ar-1.0.war\""));
+		assertEquals("not really a war", Files.readString(data.resolve("staging/ar-1.0.war")));
+		String document = plane.bodies.get(plane.requests.indexOf("POST /server/manager/v1/install"));
+		assertTrue(document.contains("\"kind\":\"application\""));
+		assertTrue(document.contains("\"name\":\"ar\""));
+		assertTrue(document.contains("\"sha256\":\"" + ManagerClient.sha256(archive) + "\""));
+		assertTrue(document.contains("\"staged\":\"ar-1.0.war\""));
+		assertFalse(document.contains("\"url\""));
 	}
 
 	@Test
@@ -97,7 +100,7 @@ class ManagerClientTest {
 		plane.serverRestart = true;
 		Path archive = temporary.resolve("canexer-server-0.4.0.zip");
 		Files.writeString(archive, "zip");
-		Map<String, Object> job = client(null, null).install(ArtifactKind.SERVER, "canexer-server", "0.4.0", archive, Duration.ofSeconds(5));
+		Map<String, Object> job = client(null, null).install(ArtifactKind.SERVER, "server", "0.4.0", archive, temporary, Duration.ofSeconds(5));
 		assertEquals("DONE", job.get("state"));
 		assertTrue(log.stream().anyMatch(line -> line.contains("restarting")));
 	}
@@ -107,7 +110,7 @@ class ManagerClientTest {
 		plane.serverRestart = true;
 		Path archive = temporary.resolve("ar.war");
 		Files.writeString(archive, "war");
-		assertThrows(BoxClientException.class, () -> client(null, null).install(ArtifactKind.APPLICATION, "ar", "1.0", archive, Duration.ofSeconds(5)));
+		assertThrows(BoxClientException.class, () -> client(null, null).install(ArtifactKind.APPLICATION, "ar", "1.0", archive, temporary, Duration.ofSeconds(5)));
 	}
 
 	@Test

@@ -72,14 +72,14 @@ final class FakePlane implements AutoCloseable {
 		}
 
 		if (tokensOnly && !("Bearer " + TOKEN).equals(authorization)) {
-			reply(exchange, 401, "{\"error\":\"unauthorized\"}");
+			reply(exchange, 401, "{\"errors\":[{\"message\":\"unauthorized\"}]}");
 			return;
 		}
 
 		switch (path) {
-		case "/server/manager/status" -> reply(exchange, 200, "{\"box\":\"testone\",\"mode\":\"" + mode + "\"}");
-		case "/server/manager/install" -> reply(exchange, 202, "{\"job\":{\"id\":\"job-1\",\"state\":\"QUEUED\",\"kind\":\"application\"}}");
-		case "/server/manager/jobs/job-1" -> {
+		case "/server/manager/v1/status" -> reply(exchange, 200, "{\"box\":\"testone\",\"mode\":\"" + mode + "\"}");
+		case "/server/manager/v1/install" -> reply(exchange, 202, "{\"job\":{\"id\":\"job-1\",\"state\":\"QUEUED\",\"kind\":\"application\"}}");
+		case "/server/manager/v1/jobs/job-1" -> {
 			polls++;
 			if (serverRestart && polls <= 2) {
 				exchange.close();
@@ -87,9 +87,9 @@ final class FakePlane implements AutoCloseable {
 			}
 			reply(exchange, 200, polls >= 2 ? "{\"id\":\"job-1\",\"state\":\"DONE\"}" : "{\"id\":\"job-1\",\"state\":\"INSTALLING\"}");
 		}
-		case "/server/manager/users" -> reply(exchange, body.contains("\"uid\":\"rmarimon\"") ? 201 : 400, body.contains("\"uid\":\"rmarimon\"") ? "{\"user\":{\"uid\":\"rmarimon\"}}" : "{\"error\":\"uid is required\"}");
-		case "/server/manager/reset" -> reply(exchange, 202, "{\"status\":\"resetting\",\"mode\":\"soft\"}");
-		default -> reply(exchange, 404, "{\"error\":\"no such path\"}");
+		case "/server/manager/v1/users" -> reply(exchange, body.contains("\"uid\":\"rmarimon\"") ? 201 : 400, body.contains("\"uid\":\"rmarimon\"") ? "{\"user\":{\"uid\":\"rmarimon\"}}" : "{\"errors\":[{\"message\":\"uid is required\"}]}");
+		case "/server/manager/v1/reset" -> reply(exchange, 202, "{\"status\":\"resetting\",\"mode\":\"soft\"}");
+		default -> reply(exchange, 404, "{\"errors\":[{\"message\":\"no such path\"}]}");
 		}
 	}
 
