@@ -1,10 +1,7 @@
 package com.nimbox.canexer.artifact;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TimeZone;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -14,8 +11,9 @@ import org.gradle.jvm.tasks.Jar;
 
 /**
  * Stamps the {@code Nimbox-*} manifest on a war, a jar, or a distribution's own
- * jar, and registers {@code installToServer}, which
- * hands the archive to a canexer development box through its manager plane. The box is {@code -Pbox=<name>}, else {@code CANEXER_BOX} in the
+ * jar, and registers {@code installToServer}, which hands the archive to a canexer
+ * development box through its manager plane, on the volume {@code CANEXER_DATA} in
+ * the environment names. The box is {@code -Pbox=<name>}, else {@code CANEXER_BOX} in the
  * environment, else the development box the composite reads off this
  * machine's data volume ({@code canexer.box}); its descriptor gives the URL
  * and the tower a token when the box asks for one. Without any box,
@@ -55,11 +53,11 @@ public abstract class ArtifactPlugin implements Plugin<Project> {
 
 			// Manifest
 
-			if (archive instanceof Jar jar) {
-				jar.manifest(manifest -> manifest.attributes(attributes(p, extension)));
-			} else {
-				stampDistribution(p, archive, extension);
-			}
+			// A distribution's manifest is its own jar's; a war or a jar has its own.
+
+			boolean distribution = kind == ArtifactKind.BOOTSTRAP || kind == ArtifactKind.SERVER;
+			Jar stamped = (Jar) (distribution ? p.getTasks().getByName(JavaPlugin.JAR_TASK_NAME) : archive);
+			stamped.manifest(manifest -> manifest.attributes(attributes(p, extension)));
 
 			// installToServer, which a bootstrap has no use for: a box runs the one its pin names.
 
@@ -81,8 +79,7 @@ public abstract class ArtifactPlugin implements Plugin<Project> {
 				task.getBoxSource().set(p.getProviders().gradleProperty("box").map(value -> "from -Pbox")
 						.orElse(p.getProviders().environmentVariable("CANEXER_BOX").map(value -> "from CANEXER_BOX"))
 						.orElse(p.getProviders().systemProperty("canexer.box").map(value -> "the development box")));
-				task.getData().set(p.getProviders().environmentVariable("CANEXER_DATA")
-						.orElse(p.getProviders().systemProperty("canexer.data")));
+				task.getData().set(p.getProviders().environmentVariable("CANEXER_DATA"));
 				task.getServerUrl().set(p.getProviders().environmentVariable("CANEXER_URL").orElse(""));
 				task.getServerSecret().set(p.getProviders().environmentVariable("CANEXER_SERVER_SECRET").orElse(""));
 			});
@@ -91,27 +88,7 @@ public abstract class ArtifactPlugin implements Plugin<Project> {
 
 	}
 
-	/**
-	 * A distribution's manifest is its own jar's, so a reader finds it from the
-	 * zip's one top directory: the two must be named the same.
-	 */
-	private static void stampDistribution(Project project, AbstractArchiveTask archive, ArtifactExtension extension) {
-
-		Jar jar = (Jar) project.getTasks().getByName(JavaPlugin.JAR_TASK_NAME);
-		jar.manifest(manifest -> manifest.attributes(attributes(project, extension)));
-
-		String top = archive.getArchiveFileName().get().replaceFirst("\\.zip$", "");
-		String own = jar.getArchiveFileName().get().replaceFirst("\\.jar$", "");
-		if (!top.equals(own)) {
-			throw new IllegalStateException("the distribution's top directory '" + top + "' and its jar '" + own + "' must be named the same");
-		}
-
-	}
-
 	private static Map<String, Object> attributes(Project project, ArtifactExtension extension) {
-
-		SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-		format.setTimeZone(TimeZone.getTimeZone("UTC"));
 
 		Map<String, Object> attributes = new LinkedHashMap<>();
 		attributes.put("Nimbox-Kind", extension.getKind().get().key());
@@ -125,7 +102,6 @@ public abstract class ArtifactPlugin implements Plugin<Project> {
 		if (extension.getRequires().isPresent()) {
 			attributes.put("Nimbox-Requires", extension.getRequires().get());
 		}
-		attributes.put("Nimbox-Built-On", format.format(new Date()));
 		return attributes;
 
 	}

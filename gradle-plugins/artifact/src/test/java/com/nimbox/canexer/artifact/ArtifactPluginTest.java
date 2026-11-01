@@ -106,25 +106,4 @@ class ArtifactPluginTest {
 
 	}
 
-	@Test
-	void whenTheJarIsNamedOtherThanTheDistribution_thenTheBuildFails() throws IOException {
-
-		Files.writeString(project.resolve("settings.gradle.kts"), "rootProject.name = \"canexer-server\"\n");
-		Files.writeString(project.resolve("build.gradle.kts"), """
-				plugins {
-					application
-					id("com.nimbox.canexer.artifact")
-				}
-				version = "1.2.3"
-				tasks.jar { archiveBaseName.set("other") }
-				canexerArtifact {
-					kind.set(com.nimbox.canexer.artifact.ArtifactKind.SERVER)
-				}
-				""");
-
-		BuildResult result = GradleRunner.create().withProjectDir(project.toFile()).withPluginClasspath().withArguments("distZip").buildAndFail();
-		assertTrue(result.getOutput().contains("must be named the same"), result.getOutput());
-
-	}
-
 }

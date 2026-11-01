@@ -29,6 +29,14 @@ into every declared file, commits, tags, and pushes. See [bump](#bump).
 * `com.nimbox.canexer.artifact`: stamps the `Nimbox-*` manifest and installs
   the artifact on a box. See [Gradle plugins](#gradle-plugins).
 
+## Standard, on purpose
+
+This repository uses each tool the way its documentation shows, with no surprises:
+standard Gradle tasks and configuration, inputs from environment variables or Gradle
+properties. A trick that needs explaining, a check nothing standard asks for, or a value
+passed through a shared JVM does not belong here; a problem fails where it happens, with
+its cause.
+
 ## bump
 
 The repo-root `VERSION` file is the single source of truth. `version.json`
