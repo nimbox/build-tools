@@ -16,4 +16,3 @@ dependencyResolutionManagement {
 }
 
 include("gradle-plugins:versioning")
-include("gradle-plugins:artifact")
